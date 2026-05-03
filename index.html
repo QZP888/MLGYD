@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>密立根油滴实验演示</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="top-bar">
+      <div>
+        <p class="eyebrow">Millikan Oil Drop</p>
+        <h1>密立根油滴实验</h1>
+      </div>
+      <nav class="view-tabs" aria-label="页面切换">
+        <button class="tab-button is-active" type="button" data-view="input">实验数据输入</button>
+        <button class="tab-button" type="button" data-view="results">计算结果</button>
+        <button class="tab-button" type="button" data-view="chart">散点图验证</button>
+        <button class="tab-button" type="button" data-view="reverse">倒推验证法</button>
+        <button class="tab-button" type="button" data-view="least">最小二乘法</button>
+        <button class="tab-button" type="button" data-view="difference">逐次相减法</button>
+      </nav>
+    </header>
+
+    <section class="view is-active" id="input-view" aria-labelledby="input-title">
+      <div class="input-page-grid">
+        <section class="card input-card" aria-labelledby="input-title">
+          <h2 id="input-title">实验数据输入</h2>
+          <div id="input-rows" class="input-rows"></div>
+          <p class="empty-state" id="input-empty">暂无数据，请添加一组实验数据。</p>
+          <div class="button-stack">
+            <button class="secondary-button" type="button" id="add-row">添加一组数据</button>
+            <button class="primary-button" type="button" id="calculate">计算油滴电荷量</button>
+          </div>
+        </section>
+
+        <aside class="card parameter-card" aria-labelledby="parameter-title">
+          <h2 id="parameter-title">实验参数</h2>
+          <ul class="parameter-list">
+            <li>油滴密度: <strong>981 kg/m<sup>3</sup></strong></li>
+            <li>空气粘滞系数: <strong>1.82×10<sup>-5</sup> Pa·s</strong></li>
+            <li>修正系数: <strong>6.17×10<sup>-6</sup> m·Pa</strong></li>
+            <li>板间距离: <strong>5.0 mm</strong></li>
+            <li>油滴运动距离: <strong>1.8 mm</strong></li>
+          </ul>
+        </aside>
+      </div>
+    </section>
+
+    <section class="view" id="results-view" aria-labelledby="results-title">
+      <div class="results-heading">
+        <div>
+          <p class="eyebrow">Results</p>
+          <h2 id="results-title">计算结果</h2>
+        </div>
+        <div class="toolbar">
+          <button class="danger-button" type="button" id="delete-bad-data" disabled>删除全部不良数据</button>
+          <button class="secondary-button" type="button" id="back-to-input">返回输入</button>
+        </div>
+      </div>
+
+      <div class="result-card-grid">
+        <section class="card metric-card" aria-labelledby="drop-title">
+          <h3 id="drop-title">油滴基本属性</h3>
+          <dl class="metric-list">
+            <div>
+              <dt>油滴半径:</dt>
+              <dd><strong id="drop-radius">--</strong> m</dd>
+            </div>
+            <div>
+              <dt>油滴质量:</dt>
+              <dd><strong id="drop-mass">--</strong> kg</dd>
+            </div>
+            <div>
+              <dt>下降速度:</dt>
+              <dd><strong id="drop-speed">--</strong> m/s</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="card metric-card" aria-labelledby="charge-title">
+          <h3 id="charge-title">电荷计算结果</h3>
+          <dl class="metric-list">
+            <div>
+              <dt>油滴电荷量 q:</dt>
+              <dd><strong id="result-q">--</strong> C</dd>
+            </div>
+            <div>
+              <dt>元电荷数量 n:</dt>
+              <dd><strong id="result-n">--</strong></dd>
+            </div>
+            <div>
+              <dt>最接近的整数电荷数:</dt>
+              <dd><strong id="result-nearest">--</strong></dd>
+            </div>
+            <div>
+              <dt>油滴平均电荷量:</dt>
+              <dd><strong id="result-average-e">--</strong> C</dd>
+            </div>
+            <div>
+              <dt>相对误差:</dt>
+              <dd><strong id="result-error">--</strong> %</dd>
+            </div>
+          </dl>
+        </section>
+      </div>
+
+      <div class="summary-grid">
+        <div class="summary-tile">
+          <strong id="sample-count">0</strong>
+          <span>数据组数</span>
+        </div>
+        <div class="summary-tile">
+          <strong id="average-charge">--</strong>
+          <span>平均电荷量</span>
+        </div>
+        <div class="summary-tile">
+          <strong id="bad-count">0</strong>
+          <span>不良数据</span>
+        </div>
+        <div class="summary-tile">
+          <strong>1.602×10<sup>-19</sup> C</strong>
+          <span>元电荷值</span>
+        </div>
+        <div class="summary-tile">
+          <strong>1.8 mm</strong>
+          <span>运动距离</span>
+        </div>
+        <div class="summary-tile">
+          <strong>5.0 mm</strong>
+          <span>板间距离</span>
+        </div>
+        <div class="summary-tile">
+          <strong>981 kg/m<sup>3</sup></strong>
+          <span>油滴密度</span>
+        </div>
+      </div>
+
+      <section class="card table-card" aria-labelledby="table-title">
+        <h3 id="table-title">多组实验数据</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>编号</th>
+                <th>V / V</th>
+                <th>t / s</th>
+                <th>q / C</th>
+                <th>n</th>
+                <th>状态</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="results-body"></tbody>
+          </table>
+        </div>
+        <p class="empty-state" id="results-empty">暂无结果。</p>
+      </section>
+    </section>
+
+    <section class="view" id="chart-view" aria-labelledby="chart-page-title">
+      <div class="results-heading">
+        <div>
+          <p class="eyebrow">Data Processing</p>
+          <h2 id="chart-page-title">电荷量散点图</h2>
+        </div>
+        <div class="toolbar">
+          <button class="secondary-button" type="button" id="chart-back-to-results">返回结果</button>
+          <button class="secondary-button" type="button" id="chart-back-to-input">返回输入</button>
+        </div>
+      </div>
+
+      <section class="card chart-card chart-page-card" aria-labelledby="chart-title">
+        <div class="chart-title-row">
+          <div>
+            <h3 id="chart-title">验证电荷的不连续性</h3>
+            <p>横轴为油滴序号 m，纵轴为电荷数 n = q / e。</p>
+          </div>
+          <strong>测多组油滴数据</strong>
+        </div>
+        <div id="charge-chart" class="chart quantized-chart" role="img" aria-label="电荷量散点图"></div>
+        <div class="point-detail" id="point-detail">
+          <span>选中点</span>
+          <strong>--</strong>
+          <p>点击散点查看对应数据</p>
+        </div>
+      </section>
+    </section>
+
+    <section class="view" id="reverse-view" aria-labelledby="reverse-page-title">
+      <div class="results-heading">
+        <div>
+          <p class="eyebrow">Reverse Verification</p>
+          <h2 id="reverse-page-title">倒推验证法</h2>
+        </div>
+        <div class="toolbar">
+          <button class="secondary-button" type="button" id="reverse-back-to-results">返回结果</button>
+          <button class="secondary-button" type="button" id="reverse-back-to-input">返回输入</button>
+        </div>
+      </div>
+
+      <div class="reverse-layout">
+        <section class="card reverse-formula-card" aria-labelledby="reverse-formula-title">
+          <h3 id="reverse-formula-title">倒推验证步骤</h3>
+          <div class="formula-steps">
+            <div>
+              <strong>1. 计算电子数目并取整</strong>
+              <p class="formula">n = [q / e₀] = [q / (1.602×10⁻¹⁹ C)]</p>
+              <p>其中 e<sub>0</sub> = 1.602×10<sup>-19</sup> C。</p>
+            </div>
+            <div>
+              <strong>2. 计算电子电荷测量值</strong>
+              <p class="formula">e = q / n</p>
+              <p>对每组油滴电荷量反推电子电荷，并统计平均值。</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="card reverse-summary-card" aria-labelledby="reverse-summary-title">
+          <h3 id="reverse-summary-title">电子电荷测量值</h3>
+          <div class="reverse-summary-grid">
+            <div>
+              <span>有效组数</span>
+              <strong id="reverse-valid-count">0</strong>
+            </div>
+            <div>
+              <span>平均测量值</span>
+              <strong id="reverse-average-e">--</strong>
+            </div>
+            <div>
+              <span>相对误差</span>
+              <strong id="reverse-average-error">--</strong>
+            </div>
+          </div>
+          <p class="reverse-note">电子数目取整后，若各组反推的 e 接近 1.602×10^-19 C，则说明电荷呈基本电荷的整数倍。</p>
+        </section>
+
+        <section class="card table-card reverse-table-card" aria-labelledby="reverse-table-title">
+          <h3 id="reverse-table-title">倒推验证数据表</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>编号</th>
+                  <th>q / C</th>
+                  <th>q / e0</th>
+                  <th>取整 n</th>
+                  <th>e = q / n / C</th>
+                  <th>相对误差</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody id="reverse-body"></tbody>
+            </table>
+          </div>
+          <p class="empty-state" id="reverse-empty">暂无倒推验证结果。</p>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" id="least-view" aria-labelledby="least-page-title">
+      <div class="results-heading">
+        <div>
+          <p class="eyebrow">Least Squares</p>
+          <h2 id="least-page-title">最小二乘法分析</h2>
+        </div>
+        <div class="toolbar">
+          <button class="secondary-button" type="button" id="least-back-to-results">返回结果</button>
+          <button class="secondary-button" type="button" id="least-back-to-input">返回输入</button>
+        </div>
+      </div>
+
+      <div class="least-layout">
+        <section class="card least-formula-card" aria-labelledby="least-formula-title">
+          <h3 id="least-formula-title">最小二乘法</h3>
+          <div class="formula-steps">
+            <div>
+              <strong>拟合电荷 q 和电荷数 n 的关系</strong>
+              <p class="formula">q = e · n</p>
+              <p>采用过原点拟合，直线斜率即电子电荷测量值。</p>
+            </div>
+            <div>
+              <strong>电子电荷测量值</strong>
+              <p class="formula">e = Σ(nq) / Σ(n²)</p>
+            </div>
+          </div>
+          <div class="least-result-strip">
+            <div>
+              <span>拟合电子电荷</span>
+              <strong id="least-fit-e">--</strong>
+            </div>
+            <div>
+              <span>相对误差</span>
+              <strong id="least-fit-error">--</strong>
+            </div>
+            <div>
+              <span>有效点数</span>
+              <strong id="least-fit-count">0</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="card least-chart-card" aria-labelledby="least-chart-title">
+          <h3 id="least-chart-title">电荷量 q 和电荷数 n 的关系</h3>
+          <div id="least-chart" class="least-chart" role="img" aria-label="最小二乘拟合图"></div>
+        </section>
+
+        <section class="card table-card least-table-card" aria-labelledby="least-table-title">
+          <h3 id="least-table-title">最小二乘计算表</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>编号</th>
+                  <th>取整 n</th>
+                  <th>实测 q / C</th>
+                  <th>拟合 q_fit / C</th>
+                  <th>残差 q-q_fit / C</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody id="least-body"></tbody>
+            </table>
+          </div>
+          <p class="empty-state" id="least-empty">暂无最小二乘分析结果。</p>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" id="difference-view" aria-labelledby="difference-page-title">
+      <div class="results-heading">
+        <div>
+          <p class="eyebrow">Difference Method</p>
+          <h2 id="difference-page-title">逐次相减法分析</h2>
+        </div>
+        <div class="toolbar">
+          <button class="secondary-button" type="button" id="difference-back-to-results">返回结果</button>
+          <button class="secondary-button" type="button" id="difference-back-to-input">返回输入</button>
+        </div>
+      </div>
+
+      <div class="difference-layout">
+        <section class="card difference-formula-card" aria-labelledby="difference-formula-title">
+          <h3 id="difference-formula-title">逐次相减求基本电荷</h3>
+          <div class="formula-steps">
+            <div>
+              <strong>1. 按电荷量 q 从小到大排列</strong>
+              <p class="formula">q₁ ≤ q₂ ≤ ... ≤ qₘ</p>
+            </div>
+            <div>
+              <strong>2. 相邻电荷逐次相减</strong>
+              <p class="formula">Δqᵢ = qᵢ₊₁ - qᵢ</p>
+              <p>若差值对应多个基本电荷，取 k = round(Δq / e₀)，再用 Δq / k 估计基本电荷。</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="card difference-summary-card" aria-labelledby="difference-summary-title">
+          <h3 id="difference-summary-title">逐次相减法估计结果</h3>
+          <div class="reverse-summary-grid">
+            <div>
+              <span>有效差值数</span>
+              <strong id="difference-valid-count">0</strong>
+            </div>
+            <div>
+              <span>估计基本电荷</span>
+              <strong id="difference-estimate-e">--</strong>
+            </div>
+            <div>
+              <span>相对误差</span>
+              <strong id="difference-error">--</strong>
+            </div>
+          </div>
+          <p class="reverse-note">逐次相减法用于观察相邻电荷量差值是否接近基本电荷的整数倍，从而验证电荷不连续性。</p>
+        </section>
+
+        <section class="card table-card difference-table-card" aria-labelledby="difference-table-title">
+          <h3 id="difference-table-title">逐次相减法计算表</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>排序序号</th>
+                  <th>原编号</th>
+                  <th>q / C</th>
+                  <th>Δq / C</th>
+                  <th>Δq / e0</th>
+                  <th>取整 k</th>
+                  <th>e = Δq / k / C</th>
+                  <th>相对误差</th>
+                </tr>
+              </thead>
+              <tbody id="difference-body"></tbody>
+            </table>
+          </div>
+          <p class="empty-state" id="difference-empty">暂无逐次相减法分析结果。</p>
+        </section>
+
+        <section class="card table-card second-difference-card" aria-labelledby="second-difference-title">
+          <h3 id="second-difference-title">二次逐次相减参考</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>序号</th>
+                  <th>|Δqᵢ₊₁ - Δqᵢ| / C</th>
+                  <th>差值 / e0</th>
+                  <th>取整 k</th>
+                  <th>e 估计 / C</th>
+                </tr>
+              </thead>
+              <tbody id="second-difference-body"></tbody>
+            </table>
+          </div>
+          <p class="empty-state" id="second-difference-empty">暂无二次逐次相减参考结果。</p>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
