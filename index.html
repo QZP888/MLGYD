@@ -21,6 +21,8 @@
         <button class="tab-button" type="button" data-view="reverse">倒推验证法</button>
         <button class="tab-button" type="button" data-view="least">最小二乘法</button>
         <button class="tab-button" type="button" data-view="difference">逐次相减法</button>
+        <button class="tab-button" type="button" data-view="process">数据处理流程</button>
+        <button class="tab-button" type="button" data-view="monte-carlo">总误差分析</button>
       </nav>
     </header>
 
@@ -32,6 +34,7 @@
           <p class="empty-state" id="input-empty">暂无数据，请添加一组实验数据。</p>
           <div class="button-stack">
             <button class="secondary-button" type="button" id="add-row">添加一组数据</button>
+            <button class="secondary-button bulk-button" type="button" id="add-100-rows">一键添加100组数据</button>
             <button class="primary-button" type="button" id="calculate">计算油滴电荷量</button>
           </div>
         </section>
@@ -415,6 +418,131 @@
             </table>
           </div>
           <p class="empty-state" id="second-difference-empty">暂无二次逐次相减参考结果。</p>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" id="process-view" aria-labelledby="process-page-title">
+      <div class="results-heading">
+        <div>
+          <p class="eyebrow">Data Quality Workflow</p>
+          <h2 id="process-page-title">数据处理流程</h2>
+        </div>
+        <div class="toolbar">
+          <button class="danger-button" type="button" id="process-delete-bad-data" disabled>剔除异常数据</button>
+          <button class="secondary-button" type="button" id="process-back-to-results">返回结果</button>
+          <button class="secondary-button" type="button" id="process-back-to-input">返回输入</button>
+        </div>
+      </div>
+
+      <div class="process-flow" aria-label="数据处理流程步骤">
+        <div><strong>1</strong><span>大量数据采集</span></div>
+        <div><strong>2</strong><span>数据预处理</span></div>
+        <div><strong>3</strong><span>误差分析与异常值剔除</span></div>
+        <div><strong>4</strong><span>正态性检验</span></div>
+        <div><strong>5</strong><span>结果与精度对比</span></div>
+        <div><strong>6</strong><span>结论</span></div>
+      </div>
+
+      <div class="process-layout">
+        <section class="card process-card process-overview-card" aria-labelledby="process-overview-title">
+          <h3 id="process-overview-title">大量数据采集与预处理</h3>
+          <div class="process-stat-grid">
+            <div><span>原始样本数</span><strong id="process-total-count">0</strong></div>
+            <div><span>有效样本数</span><strong id="process-valid-count">0</strong></div>
+            <div><span>异常样本数</span><strong id="process-outlier-count">0</strong></div>
+            <div><span>数据保留率</span><strong id="process-retention-rate">--</strong></div>
+          </div>
+          <p class="process-note">当前程序以每组油滴的平衡电压 V 和下落时间 t 作为采集数据，先排除无效输入，再根据 q / n 反推基本电荷，用统计指标判断数据质量。</p>
+        </section>
+
+        <section class="card process-card" aria-labelledby="process-outlier-title">
+          <h3 id="process-outlier-title">误差分析与异常值剔除</h3>
+          <div id="outlier-chart" class="process-chart" role="img" aria-label="异常值分析散点图"></div>
+        </section>
+
+        <section class="card process-card" aria-labelledby="process-normal-title">
+          <h3 id="process-normal-title">正态性检验</h3>
+          <div id="normal-chart" class="process-chart" role="img" aria-label="正态分布直方图"></div>
+        </section>
+
+        <section class="card table-card process-comparison-card" aria-labelledby="process-comparison-title">
+          <h3 id="process-comparison-title">计算结果与精度对比</h3>
+          <div class="table-wrap process-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>指标</th>
+                  <th>处理前</th>
+                  <th>处理后</th>
+                  <th>改善情况</th>
+                </tr>
+              </thead>
+              <tbody id="process-comparison-body"></tbody>
+            </table>
+          </div>
+          <p class="empty-state" id="process-empty">暂无数据，请先输入并计算实验数据。</p>
+        </section>
+
+        <section class="card process-card process-conclusion-card" aria-labelledby="process-conclusion-title">
+          <h3 id="process-conclusion-title">结论</h3>
+          <ul class="process-conclusion-list" id="process-conclusion-list"></ul>
+          <strong id="process-final-conclusion">请先完成实验数据计算。</strong>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" id="monte-carlo-view" aria-labelledby="monte-carlo-page-title">
+      <div class="results-heading">
+        <div>
+          <p class="eyebrow">Monte Carlo</p>
+          <h2 id="monte-carlo-page-title">总系统误差分析</h2>
+        </div>
+        <div class="toolbar">
+          <button class="secondary-button" type="button" id="monte-carlo-rerun">重新模拟</button>
+          <button class="secondary-button" type="button" id="monte-carlo-back-to-results">返回结果</button>
+          <button class="secondary-button" type="button" id="monte-carlo-back-to-input">返回输入</button>
+        </div>
+      </div>
+
+      <div class="monte-carlo-layout">
+        <section class="card process-card monte-carlo-overview-card" aria-labelledby="monte-carlo-overview-title">
+          <h3 id="monte-carlo-overview-title">蒙特卡洛误差传播</h3>
+          <div class="process-stat-grid monte-carlo-stat-grid">
+            <div><span>模拟次数</span><strong id="monte-carlo-sample-count">--</strong></div>
+            <div><span>均值误差</span><strong id="monte-carlo-mean-error">--</strong></div>
+            <div><span>中位误差</span><strong id="monte-carlo-median-error">--</strong></div>
+            <div><span>标准差</span><strong id="monte-carlo-std-error">--</strong></div>
+          </div>
+          <p class="process-note">随机扰动平衡电压 V、下落时间 t、板间距 d、油滴运动距离 L、油滴密度和空气粘滞系数，重复计算 e = q / n，得到总系统误差 e - e0 的概率分布。</p>
+        </section>
+
+        <section class="card process-card monte-carlo-source-card" aria-labelledby="monte-carlo-source-title">
+          <h3 id="monte-carlo-source-title">输入不确定度分布</h3>
+          <div id="monte-carlo-source-chart" class="process-chart monte-carlo-source-chart" role="img" aria-label="输入不确定度分布图"></div>
+        </section>
+
+        <section class="card process-card monte-carlo-distribution-card" aria-labelledby="monte-carlo-distribution-title">
+          <h3 id="monte-carlo-distribution-title">总系统误差分布</h3>
+          <div id="monte-carlo-chart" class="process-chart monte-carlo-chart" role="img" aria-label="总系统误差直方图"></div>
+        </section>
+
+        <section class="card table-card monte-carlo-table-card" aria-labelledby="monte-carlo-table-title">
+          <h3 id="monte-carlo-table-title">置信区间与误差范围</h3>
+          <div class="table-wrap process-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>指标</th>
+                  <th>误差范围 / C</th>
+                  <th>折算到 10^-21 C</th>
+                  <th>含义</th>
+                </tr>
+              </thead>
+              <tbody id="monte-carlo-body"></tbody>
+            </table>
+          </div>
+          <p class="empty-state" id="monte-carlo-empty">暂无数据，请先输入并计算实验数据。</p>
         </section>
       </div>
     </section>

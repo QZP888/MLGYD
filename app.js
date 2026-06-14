@@ -17,6 +17,7 @@ const badCount = document.querySelector("#bad-count");
 const pointDetail = document.querySelector("#point-detail");
 const chartElement = document.querySelector("#charge-chart");
 const deleteBadDataButton = document.querySelector("#delete-bad-data");
+const addBulkRowsButton = document.querySelector("#add-100-rows");
 
 const dropRadius = document.querySelector("#drop-radius");
 const dropMass = document.querySelector("#drop-mass");
@@ -44,11 +45,34 @@ const secondDifferenceEmpty = document.querySelector("#second-difference-empty")
 const differenceValidCount = document.querySelector("#difference-valid-count");
 const differenceEstimateE = document.querySelector("#difference-estimate-e");
 const differenceError = document.querySelector("#difference-error");
+const processDeleteBadDataButton = document.querySelector("#process-delete-bad-data");
+const processTotalCount = document.querySelector("#process-total-count");
+const processValidCount = document.querySelector("#process-valid-count");
+const processOutlierCount = document.querySelector("#process-outlier-count");
+const processRetentionRate = document.querySelector("#process-retention-rate");
+const processComparisonBody = document.querySelector("#process-comparison-body");
+const processEmpty = document.querySelector("#process-empty");
+const processConclusionList = document.querySelector("#process-conclusion-list");
+const processFinalConclusion = document.querySelector("#process-final-conclusion");
+const outlierChartElement = document.querySelector("#outlier-chart");
+const normalChartElement = document.querySelector("#normal-chart");
+const monteCarloChartElement = document.querySelector("#monte-carlo-chart");
+const monteCarloSourceChartElement = document.querySelector("#monte-carlo-source-chart");
+const monteCarloSampleCount = document.querySelector("#monte-carlo-sample-count");
+const monteCarloMeanError = document.querySelector("#monte-carlo-mean-error");
+const monteCarloMedianError = document.querySelector("#monte-carlo-median-error");
+const monteCarloStdError = document.querySelector("#monte-carlo-std-error");
+const monteCarloBody = document.querySelector("#monte-carlo-body");
+const monteCarloEmpty = document.querySelector("#monte-carlo-empty");
 
 let rows = [];
 let results = [];
 let chart = null;
 let leastChart = null;
+let outlierChart = null;
+let normalChart = null;
+let monteCarloChart = null;
+let monteCarloSourceChart = null;
 let selectedResultId = null;
 
 function getRowId() {
@@ -135,6 +159,32 @@ function switchView(viewName) {
     renderResults();
     renderSuccessiveDifference();
   }
+
+  if (viewName === "process") {
+    renderResults();
+    renderProcessWorkflow({ animate: true });
+    window.setTimeout(() => {
+      if (outlierChart) {
+        outlierChart.resize();
+      }
+      if (normalChart) {
+        normalChart.resize();
+      }
+    }, 80);
+  }
+
+  if (viewName === "monte-carlo") {
+    renderResults();
+    renderMonteCarloAnalysis({ animate: true });
+    window.setTimeout(() => {
+      if (monteCarloChart) {
+        monteCarloChart.resize();
+      }
+      if (monteCarloSourceChart) {
+        monteCarloSourceChart.resize();
+      }
+    }, 80);
+  }
 }
 
 function addRow(V = "", t = "") {
@@ -143,6 +193,97 @@ function addRow(V = "", t = "") {
     V,
     t
   });
+  renderInputRows();
+}
+
+function isBlankRow(row) {
+  return String(row.V).trim() === "" && String(row.t).trim() === "";
+}
+
+function calculateVoltageFromCharge(t, q) {
+  const speed = L / t;
+  const radius = Math.sqrt((9 * eta * speed) / (2 * rhoOil * g));
+  const mass = (4 / 3) * Math.PI * Math.pow(radius, 3) * rhoOil;
+  return mass * g * d / q;
+}
+
+function roundTo(value, digits) {
+  const scale = 10 ** digits;
+  return Math.round(value * scale) / scale;
+}
+
+function shuffleItems(items) {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function getRowKey(V, t) {
+  return `${Number(V).toFixed(2)}|${Number(t).toFixed(2)}`;
+}
+
+function createSyntheticExperimentRow(isOutlier, usedKeys) {
+  const outlierChargeRatios = [1.72, 2.34, 2.58, 3.44, 3.5, 4.54];
+  const maxAttempts = 300;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const chargeNumber = isOutlier
+      ? outlierChargeRatios[Math.floor(Math.random() * outlierChargeRatios.length)]
+      : 2 + Math.floor(Math.random() * 11);
+    const t = isOutlier
+      ? roundTo(14 + Math.random() * 18, 2)
+      : roundTo(8 + Math.random() * 22, 2);
+    const errorRatio = isOutlier
+      ? (Math.random() - 0.5) * 0.012
+      : (Math.random() - 0.5) * 0.045;
+    const q = chargeNumber * e * (1 + errorRatio);
+    const V = roundTo(calculateVoltageFromCharge(t, q), 2);
+    const key = getRowKey(V, t);
+
+    if (V >= 90 && V <= 520 && !usedKeys.has(key)) {
+      usedKeys.add(key);
+      return {
+        id: getRowId(),
+        V: V.toFixed(2),
+        t: t.toFixed(2)
+      };
+    }
+  }
+
+  const fallbackT = roundTo(16 + usedKeys.size * 0.17, 2);
+  const fallbackQ = (isOutlier ? 3.65 : 6.02) * e;
+  const fallbackV = roundTo(calculateVoltageFromCharge(fallbackT, fallbackQ), 2);
+  usedKeys.add(getRowKey(fallbackV, fallbackT));
+  return {
+    id: getRowId(),
+    V: fallbackV.toFixed(2),
+    t: fallbackT.toFixed(2)
+  };
+}
+
+function generateSyntheticExperimentRows() {
+  const usedKeys = new Set(rows
+    .filter((row) => !isBlankRow(row))
+    .map((row) => getRowKey(row.V, row.t)));
+  const generated = [];
+
+  for (let index = 0; index < 95; index += 1) {
+    generated.push(createSyntheticExperimentRow(false, usedKeys));
+  }
+  for (let index = 0; index < 5; index += 1) {
+    generated.push(createSyntheticExperimentRow(true, usedKeys));
+  }
+
+  return shuffleItems(generated);
+}
+
+function addSyntheticExperimentRows() {
+  syncRowsFromInputs();
+  rows = rows.filter((row) => !isBlankRow(row));
+  rows.push(...generateSyntheticExperimentRows());
   renderInputRows();
 }
 
@@ -242,6 +383,14 @@ function isDifferenceViewActive() {
   return document.querySelector("#difference-view").classList.contains("is-active");
 }
 
+function isProcessViewActive() {
+  return document.querySelector("#process-view").classList.contains("is-active");
+}
+
+function isMonteCarloViewActive() {
+  return document.querySelector("#monte-carlo-view").classList.contains("is-active");
+}
+
 function selectResult(id) {
   selectedResultId = id;
   renderResults();
@@ -256,6 +405,12 @@ function selectResult(id) {
   }
   if (isDifferenceViewActive()) {
     renderSuccessiveDifference();
+  }
+  if (isProcessViewActive()) {
+    renderProcessWorkflow({ animate: false });
+  }
+  if (isMonteCarloViewActive()) {
+    renderMonteCarloAnalysis({ animate: false });
   }
 }
 
@@ -276,6 +431,12 @@ function deleteResultRow(id) {
   if (isDifferenceViewActive()) {
     renderSuccessiveDifference();
   }
+  if (isProcessViewActive()) {
+    renderProcessWorkflow({ animate: true });
+  }
+  if (isMonteCarloViewActive()) {
+    renderMonteCarloAnalysis({ animate: true });
+  }
 }
 
 function deleteAllBadRows() {
@@ -295,6 +456,12 @@ function deleteAllBadRows() {
   }
   if (isDifferenceViewActive()) {
     renderSuccessiveDifference();
+  }
+  if (isProcessViewActive()) {
+    renderProcessWorkflow({ animate: true });
+  }
+  if (isMonteCarloViewActive()) {
+    renderMonteCarloAnalysis({ animate: true });
   }
 }
 
@@ -786,6 +953,562 @@ function renderLeastChart(rowsWithFit, fittedE, { animate = false } = {}) {
   }, true);
 }
 
+function getMean(values) {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
+function getStandardDeviation(values) {
+  if (values.length < 2) {
+    return 0;
+  }
+  const mean = getMean(values);
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1);
+  return Math.sqrt(variance);
+}
+
+function getProcessStats(items) {
+  const validItems = items.filter((item) => Number.isFinite(item.averageElectronCharge) && item.averageElectronCharge > 0);
+  const values = validItems.map((item) => item.averageElectronCharge);
+  const mean = getMean(values);
+  const standardDeviation = getStandardDeviation(values);
+  const relativeUncertainty = mean ? standardDeviation / mean * 100 : 0;
+  const theoryBias = mean ? Math.abs(mean - e) / e * 100 : 0;
+
+  return {
+    validItems,
+    values,
+    mean,
+    standardDeviation,
+    relativeUncertainty,
+    theoryBias
+  };
+}
+
+function getProcessWorkflowData() {
+  const rawStats = getProcessStats(results);
+  const rawValues = rawStats.values;
+  const grubbsLimit = rawValues.length >= 3 ? 1.8 : Infinity;
+  const processOutlierIds = new Set();
+
+  rawStats.validItems.forEach((item) => {
+    const zScore = rawStats.standardDeviation
+      ? Math.abs(item.averageElectronCharge - rawStats.mean) / rawStats.standardDeviation
+      : 0;
+    const theoryError = Math.abs(item.averageElectronCharge - e) / e * 100;
+    if (zScore > grubbsLimit || theoryError > 12) {
+      processOutlierIds.add(item.id);
+    }
+  });
+
+  const optimizedItems = rawStats.validItems.filter((item) => !processOutlierIds.has(item.id));
+  const optimizedStats = getProcessStats(optimizedItems);
+
+  return {
+    rawStats,
+    optimizedStats,
+    processOutlierIds,
+    outlierCount: processOutlierIds.size,
+    retentionRate: rawStats.validItems.length
+      ? optimizedStats.validItems.length / rawStats.validItems.length * 100
+      : 0
+  };
+}
+
+function formatPercentChange(before, after, lowerIsBetter = true) {
+  if (!before || !Number.isFinite(before) || !Number.isFinite(after)) {
+    return "--";
+  }
+  const change = (before - after) / before * 100;
+  if (Math.abs(change) < 0.01) {
+    return "基本不变";
+  }
+  const isBetter = lowerIsBetter ? change > 0 : change < 0;
+  const direction = change > 0 ? "降低" : "升高";
+  return `${isBetter ? "提升" : "变化"}: ${direction} ${formatNumber(Math.abs(change), 2)}%`;
+}
+
+function renderProcessComparison(data) {
+  const { rawStats, optimizedStats } = data;
+  processComparisonBody.innerHTML = "";
+  const rowsData = [
+    ["样本数", rawStats.validItems.length, optimizedStats.validItems.length, data.outlierCount ? `剔除 ${data.outlierCount} 组` : "未发现异常"],
+    ["均值 μ / C", formatScientific(rawStats.mean, 4), formatScientific(optimizedStats.mean, 4), formatPercentChange(Math.abs(rawStats.mean - e), Math.abs(optimizedStats.mean - e))],
+    ["标准差 σ / C", formatScientific(rawStats.standardDeviation, 4), formatScientific(optimizedStats.standardDeviation, 4), formatPercentChange(rawStats.standardDeviation, optimizedStats.standardDeviation)],
+    ["相对标准不确定度", `${formatNumber(rawStats.relativeUncertainty, 2)} %`, `${formatNumber(optimizedStats.relativeUncertainty, 2)} %`, formatPercentChange(rawStats.relativeUncertainty, optimizedStats.relativeUncertainty)],
+    ["与理论值偏差", `${formatNumber(rawStats.theoryBias, 2)} %`, `${formatNumber(optimizedStats.theoryBias, 2)} %`, formatPercentChange(rawStats.theoryBias, optimizedStats.theoryBias)]
+  ];
+
+  rowsData.forEach((rowData) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = rowData.map((cell) => `<td>${cell}</td>`).join("");
+    processComparisonBody.appendChild(tr);
+  });
+}
+
+function getNormalCurvePoints(mean, standardDeviation, minValue, maxValue) {
+  if (!mean || !standardDeviation) {
+    return [];
+  }
+  const points = [];
+  const step = (maxValue - minValue) / 80;
+  for (let value = minValue; value <= maxValue; value += step) {
+    const exponent = -0.5 * ((value - mean) / standardDeviation) ** 2;
+    const density = Math.exp(exponent) / (standardDeviation * Math.sqrt(2 * Math.PI));
+    points.push([value / 1e-19, density * 1e-19]);
+  }
+  return points;
+}
+
+function getHistogram(values, binCount = 12) {
+  if (!values.length) {
+    return { bins: [], minValue: e * 0.8, maxValue: e * 1.2 };
+  }
+  const minValue = Math.min(...values, e * 0.85);
+  const maxValue = Math.max(...values, e * 1.15);
+  const width = (maxValue - minValue) / binCount || e * 0.02;
+  const bins = Array.from({ length: binCount }, (_, index) => {
+    const start = minValue + index * width;
+    return {
+      start,
+      end: start + width,
+      center: start + width / 2,
+      count: 0
+    };
+  });
+
+  values.forEach((value) => {
+    const index = Math.min(binCount - 1, Math.max(0, Math.floor((value - minValue) / width)));
+    bins[index].count += 1;
+  });
+
+  return { bins, minValue, maxValue };
+}
+
+function renderOutlierChart(data, { animate = false } = {}) {
+  if (!outlierChart) {
+    outlierChart = echarts.init(outlierChartElement);
+    outlierChart.on("click", (params) => {
+      if (params.data?.id) {
+        selectResult(params.data.id);
+      }
+    });
+  }
+
+  const values = data.rawStats.validItems.map((item) => item.averageElectronCharge / 1e-19);
+  const maxIndex = Math.max(10, data.rawStats.validItems.length);
+  const minY = values.length ? Math.max(0, Math.min(...values, 1.2) - 0.08) : 1.2;
+  const maxY = values.length ? Math.max(...values, 2.0) + 0.08 : 2.0;
+
+  if (animate) {
+    outlierChart.clear();
+  }
+
+  outlierChart.setOption({
+    animation: true,
+    animationDuration: animate ? 900 : 180,
+    backgroundColor: "transparent",
+    grid: { left: 64, right: 28, top: 36, bottom: 52 },
+    tooltip: {
+      trigger: "item",
+      formatter(params) {
+        const item = data.rawStats.validItems[params.dataIndex];
+        return `#${item.index}<br>e_i: ${formatScientific(item.averageElectronCharge, 4)} C<br>误差: ${formatNumber(item.relativeError, 2)} %`; 
+      }
+    },
+    xAxis: { type: "value", name: "数据序号", min: 0, max: maxIndex, interval: Math.max(1, Math.ceil(maxIndex / 8)) },
+    yAxis: { type: "value", name: "e_i / 10^-19 C", min: minY, max: maxY },
+    series: [
+      {
+        name: "测量值",
+        type: "scatter",
+        symbolSize(value, params) {
+          const item = data.rawStats.validItems[params.dataIndex];
+          return item?.id === selectedResultId ? 15 : 9;
+        },
+        data: data.rawStats.validItems.map((item) => ({
+          id: item.id,
+          value: [item.index, item.averageElectronCharge / 1e-19],
+          itemStyle: {
+            color: data.processOutlierIds.has(item.id) ? "#e75d73" : "#0b78a8",
+            borderColor: item.id === selectedResultId ? "#17324d" : "#ffffff",
+            borderWidth: item.id === selectedResultId ? 3 : 1
+          }
+        })),
+        markLine: {
+          symbol: "none",
+          lineStyle: { color: "#cf5e62", type: "dashed", width: 2 },
+          data: [{ yAxis: e / 1e-19, name: "理论值" }]
+        }
+      }
+    ]
+  }, true);
+}
+
+function renderNormalChart(data, { animate = false } = {}) {
+  if (!normalChart) {
+    normalChart = echarts.init(normalChartElement);
+  }
+
+  const values = data.optimizedStats.values.length ? data.optimizedStats.values : data.rawStats.values;
+  const stats = data.optimizedStats.values.length ? data.optimizedStats : data.rawStats;
+  const histogram = getHistogram(values, 12);
+  const normalCurve = getNormalCurvePoints(stats.mean, stats.standardDeviation, histogram.minValue, histogram.maxValue);
+
+  if (animate) {
+    normalChart.clear();
+  }
+
+  normalChart.setOption({
+    animation: true,
+    animationDuration: animate ? 1000 : 180,
+    backgroundColor: "transparent",
+    grid: { left: 64, right: 28, top: 36, bottom: 52 },
+    tooltip: { trigger: "axis" },
+    xAxis: { type: "value", name: "e_i / 10^-19 C", min: histogram.minValue / 1e-19, max: histogram.maxValue / 1e-19 },
+    yAxis: { type: "value", name: "频数 / 密度" },
+    series: [
+      {
+        name: "测量分布",
+        type: "bar",
+        barWidth: "80%",
+        data: histogram.bins.map((bin) => [bin.center / 1e-19, bin.count]),
+        itemStyle: { color: "rgba(59, 159, 226, 0.55)", borderColor: "#3b9fe2" },
+        markLine: {
+          symbol: "none",
+          data: [
+            { xAxis: e / 1e-19, name: "理论值", lineStyle: { color: "#cf5e62", type: "dashed", width: 2 } },
+            { xAxis: stats.mean / 1e-19, name: "均值", lineStyle: { color: "#1f8a55", type: "dashed", width: 2 } }
+          ]
+        }
+      },
+      {
+        name: "正态拟合曲线",
+        type: "line",
+        smooth: true,
+        showSymbol: false,
+        data: normalCurve,
+        lineStyle: { color: "#e75d73", width: 3 }
+      }
+    ]
+  }, true);
+}
+
+function renderProcessConclusion(data) {
+  const { rawStats, optimizedStats } = data;
+  processConclusionList.innerHTML = "";
+  const standardDeviationDrop = rawStats.standardDeviation
+    ? (rawStats.standardDeviation - optimizedStats.standardDeviation) / rawStats.standardDeviation * 100
+    : 0;
+  const uncertaintyDrop = rawStats.relativeUncertainty
+    ? (rawStats.relativeUncertainty - optimizedStats.relativeUncertainty) / rawStats.relativeUncertainty * 100
+    : 0;
+  const biasDrop = rawStats.theoryBias
+    ? (rawStats.theoryBias - optimizedStats.theoryBias) / rawStats.theoryBias * 100
+    : 0;
+  const conclusionItems = [
+    `识别异常数据 ${data.outlierCount} 组，保留 ${optimizedStats.validItems.length} 组有效数据。`,
+    `处理后平均基本电荷为 ${formatScientific(optimizedStats.mean, 4)} C。`,
+    `标准差${standardDeviationDrop >= 0 ? "降低" : "升高"} ${formatNumber(Math.abs(standardDeviationDrop), 2)}%。`,
+    `相对标准不确定度${uncertaintyDrop >= 0 ? "降低" : "升高"} ${formatNumber(Math.abs(uncertaintyDrop), 2)}%。`,
+    `与理论值偏差${biasDrop >= 0 ? "降低" : "升高"} ${formatNumber(Math.abs(biasDrop), 2)}%。`
+  ];
+
+  conclusionItems.forEach((text) => {
+    const li = document.createElement("li");
+    li.textContent = text;
+    processConclusionList.appendChild(li);
+  });
+
+  processFinalConclusion.textContent = optimizedStats.validItems.length
+    ? "处理后数据质量提升，电荷量测量结果更接近基本电荷理论值。"
+    : "有效数据不足，请补充实验数据后重新分析。";
+}
+
+function renderProcessWorkflow({ animate = false } = {}) {
+  const data = getProcessWorkflowData();
+  processTotalCount.textContent = String(results.length);
+  processValidCount.textContent = String(data.optimizedStats.validItems.length);
+  processOutlierCount.textContent = String(data.outlierCount);
+  processRetentionRate.textContent = data.rawStats.validItems.length ? `${formatNumber(data.retentionRate, 1)} %` : "--";
+  processDeleteBadDataButton.disabled = data.outlierCount === 0;
+  processEmpty.classList.toggle("is-hidden", results.length > 0);
+
+  renderProcessComparison(data);
+  renderOutlierChart(data, { animate });
+  renderNormalChart(data, { animate });
+  renderProcessConclusion(data);
+}
+
+function deleteProcessOutlierRows() {
+  const { processOutlierIds } = getProcessWorkflowData();
+  rows = rows.filter((row) => !processOutlierIds.has(row.id));
+  recalculateResults();
+  renderInputRows();
+  renderResults();
+  renderProcessWorkflow({ animate: true });
+}
+
+function randomNormal() {
+  let u = 0;
+  let v = 0;
+  while (u === 0) {
+    u = Math.random();
+  }
+  while (v === 0) {
+    v = Math.random();
+  }
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function randomUniformHalfWidth(halfWidth) {
+  return (Math.random() * 2 - 1) * halfWidth;
+}
+
+function calculateOilDropWithConstants(V, t, constants) {
+  const speed = constants.L / t;
+  const radius = Math.sqrt((9 * constants.eta * speed) / (2 * constants.rhoOil * g));
+  const mass = (4 / 3) * Math.PI * Math.pow(radius, 3) * constants.rhoOil;
+  return mass * g * constants.d / V;
+}
+
+function sampleMonteCarloConstants(activeSource = "all") {
+  const use = (source) => activeSource === "all" || activeSource === source;
+  return {
+    rhoOil: rhoOil * (1 + (use("rhoOil") ? randomNormal() * 0.01 : 0)),
+    eta: eta * (1 + (use("eta") ? randomNormal() * 0.015 : 0)),
+    d: d + (use("d") ? randomNormal() * 0.02e-3 : 0),
+    L: L + (use("L") ? randomNormal() * 0.01e-3 : 0)
+  };
+}
+
+function sampleMonteCarloTrial(validItems, activeSource = "all") {
+  const constants = sampleMonteCarloConstants(activeSource);
+  const values = validItems.map((item) => {
+    const shouldPerturbAll = activeSource === "all";
+    const V = item.V + (shouldPerturbAll || activeSource === "V" ? randomUniformHalfWidth(0.5) : 0);
+    const t = item.t + (shouldPerturbAll || activeSource === "t" ? randomNormal() * 0.05 : 0);
+    const safeV = Math.max(1, V);
+    const safeT = Math.max(0.1, t);
+    const q = calculateOilDropWithConstants(safeV, safeT, constants);
+    return item.nearestN > 0 ? q / item.nearestN : 0;
+  }).filter((value) => Number.isFinite(value) && value > 0);
+
+  return values.length ? getMean(values) - e : 0;
+}
+
+function getQuantile(sortedValues, quantile) {
+  if (!sortedValues.length) {
+    return 0;
+  }
+  const position = (sortedValues.length - 1) * quantile;
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  if (lower === upper) {
+    return sortedValues[lower];
+  }
+  return sortedValues[lower] + (sortedValues[upper] - sortedValues[lower]) * (position - lower);
+}
+
+function getValueHistogram(values, binCount = 34) {
+  if (!values.length) {
+    return { bins: [], minValue: -1e-21, maxValue: 1e-21 };
+  }
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const padding = (maxValue - minValue || 1e-21) * 0.08;
+  const startValue = minValue - padding;
+  const endValue = maxValue + padding;
+  const width = (endValue - startValue) / binCount;
+  const bins = Array.from({ length: binCount }, (_, index) => {
+    const start = startValue + index * width;
+    return {
+      start,
+      end: start + width,
+      center: start + width / 2,
+      count: 0
+    };
+  });
+
+  values.forEach((value) => {
+    const index = Math.min(binCount - 1, Math.max(0, Math.floor((value - startValue) / width)));
+    bins[index].count += 1;
+  });
+
+  return { bins, minValue: startValue, maxValue: endValue };
+}
+
+function getMonteCarloAnalysisData(trialCount = 8000) {
+  const workflowData = getProcessWorkflowData();
+  const validItems = workflowData.optimizedStats.validItems.length
+    ? workflowData.optimizedStats.validItems
+    : workflowData.rawStats.validItems;
+  const errors = [];
+
+  for (let index = 0; index < trialCount; index += 1) {
+    const error = sampleMonteCarloTrial(validItems, "all");
+    if (Number.isFinite(error)) {
+      errors.push(error);
+    }
+  }
+
+  const sortedErrors = [...errors].sort((a, b) => a - b);
+  const mean = getMean(errors);
+  const standardDeviation = getStandardDeviation(errors);
+  const sourceNames = [
+    ["V", "平衡电压 V"],
+    ["t", "下落时间 t"],
+    ["d", "板间距 d"],
+    ["L", "运动距离 L"],
+    ["rhoOil", "油滴密度"],
+    ["eta", "空气粘滞系数"]
+  ];
+  const contributionTrialCount = Math.min(2200, trialCount);
+  const sourceContributions = sourceNames.map(([key, label]) => {
+    const sourceErrors = [];
+    for (let index = 0; index < contributionTrialCount; index += 1) {
+      sourceErrors.push(sampleMonteCarloTrial(validItems, key));
+    }
+    return {
+      key,
+      label,
+      standardDeviation: getStandardDeviation(sourceErrors)
+    };
+  });
+  sourceContributions.sort((a, b) => b.standardDeviation - a.standardDeviation);
+
+  return {
+    trialCount: errors.length,
+    validCount: validItems.length,
+    errors,
+    mean,
+    median: getQuantile(sortedErrors, 0.5),
+    standardDeviation,
+    lower68: getQuantile(sortedErrors, 0.1587),
+    upper68: getQuantile(sortedErrors, 0.8413),
+    lower95: getQuantile(sortedErrors, 0.025),
+    upper95: getQuantile(sortedErrors, 0.975),
+    sourceContributions
+  };
+}
+
+function formatErrorRange(lower, upper) {
+  return `${formatScientific(lower, 3)} ~ ${formatScientific(upper, 3)}`;
+}
+
+function renderMonteCarloTable(data) {
+  monteCarloBody.innerHTML = "";
+  const rowsData = data.validCount ? [
+    ["68.3% 区间", formatErrorRange(data.lower68, data.upper68), `${formatNumber(data.lower68 / 1e-21, 2)} ~ ${formatNumber(data.upper68 / 1e-21, 2)}`, "约等于 1σ 的总误差范围"],
+    ["95% 区间", formatErrorRange(data.lower95, data.upper95), `${formatNumber(data.lower95 / 1e-21, 2)} ~ ${formatNumber(data.upper95 / 1e-21, 2)}`, "多数重复实验会落入的误差带"],
+    ["最大贡献项", `${data.sourceContributions[0]?.label || "--"}`, `${formatNumber((data.sourceContributions[0]?.standardDeviation || 0) / 1e-21, 2)}`, "按单独扰动时的标准差排序"]
+  ] : [];
+
+  rowsData.forEach((rowData) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = rowData.map((cell) => `<td>${cell}</td>`).join("");
+    monteCarloBody.appendChild(tr);
+  });
+}
+
+function renderMonteCarloDistributionChart(data, { animate = false } = {}) {
+  if (!monteCarloChart) {
+    monteCarloChart = echarts.init(monteCarloChartElement);
+  }
+
+  const histogram = getValueHistogram(data.errors, 36);
+  if (animate) {
+    monteCarloChart.clear();
+  }
+
+  monteCarloChart.setOption({
+    animation: true,
+    animationDuration: animate ? 1000 : 180,
+    backgroundColor: "transparent",
+    grid: { left: 72, right: 32, top: 42, bottom: 58 },
+    tooltip: {
+      trigger: "axis",
+      formatter(params) {
+        const item = params[0];
+        return `误差: ${formatNumber(item.value[0], 2)} ×10^-21 C<br>频数: ${item.value[1]}`;
+      }
+    },
+    xAxis: {
+      type: "value",
+      name: "总系统误差 / 10^-21 C",
+      min: histogram.minValue / 1e-21,
+      max: histogram.maxValue / 1e-21,
+      splitLine: { lineStyle: { color: "#e3edf5" } }
+    },
+    yAxis: { type: "value", name: "频数" },
+    series: [
+      {
+        name: "蒙特卡洛误差分布",
+        type: "bar",
+        barWidth: "92%",
+        data: histogram.bins.map((bin) => [bin.center / 1e-21, bin.count]),
+        itemStyle: { color: "rgba(22, 63, 143, 0.76)", borderColor: "#163f8f" },
+        markLine: {
+          symbol: "none",
+          data: [
+            { xAxis: 0, name: "理论零误差", lineStyle: { color: "#cf5e62", type: "dashed", width: 2 } },
+            { xAxis: data.mean / 1e-21, name: "均值", lineStyle: { color: "#1f8a55", type: "dashed", width: 2 } },
+            { xAxis: data.lower68 / 1e-21, name: "68.3% 下限", lineStyle: { color: "#6f7f8e", type: "dotted", width: 2 } },
+            { xAxis: data.upper68 / 1e-21, name: "68.3% 上限", lineStyle: { color: "#6f7f8e", type: "dotted", width: 2 } }
+          ]
+        }
+      }
+    ]
+  }, true);
+}
+
+function renderMonteCarloSourceChart(data, { animate = false } = {}) {
+  if (!monteCarloSourceChart) {
+    monteCarloSourceChart = echarts.init(monteCarloSourceChartElement);
+  }
+
+  const sorted = [...data.sourceContributions].sort((a, b) => b.standardDeviation - a.standardDeviation);
+
+  if (animate) {
+    monteCarloSourceChart.clear();
+  }
+
+  monteCarloSourceChart.setOption({
+    animation: true,
+    animationDuration: animate ? 900 : 180,
+    backgroundColor: "transparent",
+    grid: { left: 108, right: 28, top: 28, bottom: 42 },
+    tooltip: {
+      trigger: "axis",
+      formatter(params) {
+        const item = params[0];
+        return `${item.name}<br>单项标准差: ${formatScientific(item.value * 1e-21, 3)} C`; 
+      }
+    },
+    xAxis: { type: "value", name: "单项标准差 / 10^-21 C" },
+    yAxis: { type: "category", data: sorted.map((item) => item.label) },
+    series: [
+      {
+        name: "误差来源贡献",
+        type: "bar",
+        data: sorted.map((item) => item.standardDeviation / 1e-21),
+        itemStyle: { color: "#3b9fe2", borderRadius: [0, 6, 6, 0] }
+      }
+    ]
+  }, true);
+}
+
+function renderMonteCarloAnalysis({ animate = false } = {}) {
+  const data = getMonteCarloAnalysisData();
+  monteCarloSampleCount.textContent = data.validCount ? formatNumber(data.trialCount, 0) : "--";
+  monteCarloMeanError.textContent = data.validCount ? `${formatNumber(data.mean / 1e-21, 2)}×10^-21 C` : "--";
+  monteCarloMedianError.textContent = data.validCount ? `${formatNumber(data.median / 1e-21, 2)}×10^-21 C` : "--";
+  monteCarloStdError.textContent = data.validCount ? `${formatNumber(data.standardDeviation / 1e-21, 2)}×10^-21 C` : "--";
+  monteCarloEmpty.classList.toggle("is-hidden", data.validCount > 0);
+  renderMonteCarloTable(data);
+  renderMonteCarloSourceChart(data, { animate });
+  renderMonteCarloDistributionChart(data, { animate });
+}
+
 function estimateElementaryChargeFromDelta(delta) {
   const k = delta > 0 ? Math.round(delta / e) : 0;
   const estimatedE = k > 0 ? delta / k : 0;
@@ -891,6 +1614,8 @@ document.querySelector("#add-row").addEventListener("click", () => {
   addRow();
 });
 
+addBulkRowsButton.addEventListener("click", addSyntheticExperimentRows);
+
 document.querySelector("#calculate").addEventListener("click", calculateAll);
 document.querySelector("#back-to-input").addEventListener("click", () => switchView("input"));
 document.querySelector("#chart-back-to-results").addEventListener("click", () => switchView("results"));
@@ -901,7 +1626,13 @@ document.querySelector("#least-back-to-results").addEventListener("click", () =>
 document.querySelector("#least-back-to-input").addEventListener("click", () => switchView("input"));
 document.querySelector("#difference-back-to-results").addEventListener("click", () => switchView("results"));
 document.querySelector("#difference-back-to-input").addEventListener("click", () => switchView("input"));
+document.querySelector("#process-back-to-results").addEventListener("click", () => switchView("results"));
+document.querySelector("#process-back-to-input").addEventListener("click", () => switchView("input"));
+document.querySelector("#monte-carlo-rerun").addEventListener("click", () => renderMonteCarloAnalysis({ animate: true }));
+document.querySelector("#monte-carlo-back-to-results").addEventListener("click", () => switchView("results"));
+document.querySelector("#monte-carlo-back-to-input").addEventListener("click", () => switchView("input"));
 deleteBadDataButton.addEventListener("click", deleteAllBadRows);
+processDeleteBadDataButton.addEventListener("click", deleteProcessOutlierRows);
 
 window.addEventListener("resize", () => {
   if (chart) {
@@ -909,6 +1640,18 @@ window.addEventListener("resize", () => {
   }
   if (leastChart) {
     leastChart.resize();
+  }
+  if (outlierChart) {
+    outlierChart.resize();
+  }
+  if (normalChart) {
+    normalChart.resize();
+  }
+  if (monteCarloChart) {
+    monteCarloChart.resize();
+  }
+  if (monteCarloSourceChart) {
+    monteCarloSourceChart.resize();
   }
 });
 
